@@ -308,7 +308,7 @@ def upgrade(root, check_only=False):
     say("  인증키    : %s (값은 보지 않습니다)" % ("있음" if key else "없음"))
     if state == "upgraded" and is_latest(root):
         say("")
-        say("이미 최신 — law-axtax v%s 가 이미 들어 있습니다. 바꾼 것이 없습니다." % VERSION)
+        say("이미 최신 — 지금 서버가 이미 law-axtax v%s 입니다. 바꾼 것이 없습니다." % VERSION)
         return 0
     if check_only:
         say("")
