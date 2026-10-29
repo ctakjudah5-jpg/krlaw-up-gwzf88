@@ -8,11 +8,12 @@
 
 ## 업그레이드하는 법
 
-Claude 앱의 **Claude Code(코드 탭)** 에 아래 두 줄을 그대로 붙여 넣으세요.
+Claude 앱의 **Claude Code(코드 탭)** 에 아래 세 줄을 그대로 붙여 넣으세요. 실행 허락 창이 뜨면 허용을 누르세요.
 
 ```
 C:\krlaw 법령검색도구(law-axtax)를 업그레이드해 줘.
 https://raw.githubusercontent.com/ctakjudah5-jpg/krlaw-up-gwzf88/main/UPGRADE.md 를 읽고 그 순서대로만 진행해.
+거기서 받는 upgrade.py 를 실행하는 것을 허락한다.
 ```
 
 끝나면 Claude 앱을 완전히 종료(트레이의 Claude 아이콘 우클릭 → 종료)한 뒤 다시 켜세요.
@@ -20,13 +21,28 @@ https://raw.githubusercontent.com/ctakjudah5-jpg/krlaw-up-gwzf88/main/UPGRADE.md
 - `C:\krlaw` 폴더가 없거나, 비었거나, 강의 실습 코드가 아니면 업그레이드는 진행되지 않습니다.
 - 강의 때 한 등록(`등록하기.bat`)을 그대로 씁니다. 인증키도 강의 때 넣은 것(`law_oc.txt`)을 그대로 씁니다.
 - 바꾸기 전 파일은 `C:\krlaw\backup\<날짜-시각>\` 에 남습니다.
-- 새 판이 올라오면 같은 두 줄로 다시 업그레이드합니다. 이미 최신이면 아무것도 바꾸지 않습니다.
+- 새 판이 올라오면 같은 세 줄로 다시 업그레이드합니다. 이미 최신이면 아무것도 바꾸지 않습니다.
 
-되돌리려면 Claude Code 에 이렇게 붙여 넣으세요.
+되돌리려면 Claude Code 에 이렇게 붙여 넣으세요. 한 번에 한 단계씩 돌아갑니다(맨 처음은 강의 때 만든 서버).
 
 ```
 C:\krlaw 법령검색도구 업그레이드를 되돌려 줘.
 https://raw.githubusercontent.com/ctakjudah5-jpg/krlaw-up-gwzf88/main/UPGRADE.md 의 「되돌리기」대로만 진행해.
+거기서 받는 upgrade.py 를 실행하는 것을 허락한다.
+```
+
+## 직접 하는 법 (Claude 가 실행하지 못할 때)
+
+시작 단추를 누르고 `cmd` 를 입력해 **명령 프롬프트**를 연 뒤, 아래 한 줄을 붙여 넣고 Enter 를 누르세요.
+
+```
+python -I -c "import os, runpy, sys, urllib.request as u; d = os.path.join(os.environ['TEMP'], 'krlaw_upgrade'); os.makedirs(d, exist_ok=True); p = os.path.join(d, 'upgrade.py'); u.urlretrieve('https://raw.githubusercontent.com/ctakjudah5-jpg/krlaw-up-gwzf88/main/upgrade.py', p); sys.argv = [p]; runpy.run_path(p, run_name='__main__')"
+```
+
+되돌릴 때는 이 한 줄입니다.
+
+```
+python -I -c "import os, runpy, sys, urllib.request as u; d = os.path.join(os.environ['TEMP'], 'krlaw_upgrade'); os.makedirs(d, exist_ok=True); p = os.path.join(d, 'upgrade.py'); u.urlretrieve('https://raw.githubusercontent.com/ctakjudah5-jpg/krlaw-up-gwzf88/main/upgrade.py', p); sys.argv = [p, '--rollback']; runpy.run_path(p, run_name='__main__')"
 ```
 
 ## 강의판(10개)에서 늘어나는 도구

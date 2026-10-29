@@ -23,9 +23,10 @@
 # The key in law_oc.txt is read only by the start file and never
 # printed. The Claude app's own files are never opened.
 #
-#   python upgrade.py              upgrade (or report "이미 최신")
-#   python upgrade.py --check      look only; changes nothing
-#   python upgrade.py --rollback   put back the files of the last backup
+#   python -I upgrade.py                      upgrade (or report "이미 최신")
+#   python -I upgrade.py --check              look only; changes nothing
+#   python -I upgrade.py --rollback           one step back: the files of the last backup
+#   python -I upgrade.py --rollback --check   show where a rollback would go; changes nothing
 # ---------------------------------------------------------------
 import argparse
 import datetime
@@ -61,6 +62,7 @@ ENTRY = "my_law_server.py"      # the file the Claude app runs (lecture step 7)
 CORE = "law_mcp_server.py"
 NOTICE = "THIRD_PARTY_NOTICES.txt"
 BACKUP = "backup"
+USED = "-restored"              # suffix of a backup folder already put back
 TAG = "# krlaw-upgrade start file"
 
 # The same two lines setup_key.py writes at the top of my_law_server.py.
@@ -205,11 +207,13 @@ def is_latest(root):
             and entry == start_file(stamp_lines(root)))
 
 
-def server_version(root, state):
-    if state == "upgraded":
-        m = re.search(r'SERVER_VERSION\s*=\s*"([^"]+)"', read_text(os.path.join(root, CORE)))
+def server_version(folder):
+    """Which server a folder (C:\\krlaw or one backup) holds."""
+    entry = read_text(os.path.join(folder, ENTRY))
+    if TAG in entry:
+        m = re.search(r'SERVER_VERSION\s*=\s*"([^"]+)"', read_text(os.path.join(folder, CORE)))
         return "law-axtax v%s (업그레이드판)" % (m.group(1) if m else "?")
-    return "강의 실습판"
+    return "강의 실습판" if "law-axtax" in entry else "알 수 없음"
 
 
 def has_key(root):
@@ -299,7 +303,7 @@ def upgrade(root, check_only=False):
         raise Stop("업그레이드하지 않았습니다. 이 업그레이드는 강의 실습을 마친 PC 의 C:\\krlaw 에서만 합니다"
                    "(폴더가 없거나 · 비었거나 · 강의 실습 코드가 아니면 진행하지 않음). 아무것도 바꾸지 않았습니다.")
     key = has_key(root)
-    say("  지금 서버 : %s" % server_version(root, state))
+    say("  지금 서버 : %s" % server_version(root))
     say("  새 판     : law-axtax v%s · 도구 %d개" % (VERSION, TOOL_COUNT))
     say("  인증키    : %s (값은 보지 않습니다)" % ("있음" if key else "없음"))
     if state == "upgraded" and is_latest(root):
@@ -360,37 +364,59 @@ def upgrade(root, check_only=False):
     return 0
 
 
-def rollback(root):
+def backups(root):
+    """Backup folders not yet put back, oldest first."""
+    base = os.path.join(root, BACKUP)
+    if not os.path.isdir(base):
+        return []
+    return sorted(d for d in os.listdir(base)
+                  if re.fullmatch(r"\d{8}-\d{6}(-\d+)?", d) and os.path.isfile(os.path.join(base, d, ENTRY)))
+
+
+def rollback(root, check_only=False):
+    """One step back: put back the newest unused backup, then mark it used."""
     state, why = inspect(root)
     if state in ("missing", "empty"):
         raise Stop("%s — 되돌릴 것이 없습니다." % why)
-    bases = []
-    if os.path.isdir(os.path.join(root, BACKUP)):
-        bases = sorted(d for d in os.listdir(os.path.join(root, BACKUP))
-                       if re.fullmatch(r"\d{8}-\d{6}(-\d+)?", d)
-                       and os.path.isfile(os.path.join(root, BACKUP, d, ENTRY)))
-    if not bases:
+    found = backups(root)
+    if not found:
         raise Stop("되돌릴 백업이 없습니다(%s). 아무것도 바꾸지 않았습니다." % os.path.join(root, BACKUP))
-    bdir = os.path.join(root, BACKUP, bases[-1])
-    names = put_back(bdir, root)
-    say("  되돌린 파일: %s" % " · ".join(names))
+    bdir = os.path.join(root, BACKUP, found[-1])
+    target = server_version(bdir)
+    say("  지금 서버 : %s" % server_version(root))
+    say("  되돌릴 곳 : %s (backup\\%s · %s)" % (target, found[-1], " · ".join(sorted(os.listdir(bdir)))))
+    if check_only:
+        say("")
+        say("보기만 했습니다 — 되돌리면 %s으로 바뀝니다. 아무것도 바꾸지 않았습니다." % target)
+        return 0
+    put_back(bdir, root)
+    try:
+        os.rename(bdir, bdir + USED)      # the next rollback goes one step further back
+    except OSError:
+        pass
+    more = " 한 번 더 되돌리면 그 앞 단계로 갑니다." if len(found) > 1 else ""
     say("")
-    say("되돌림 — %s 의 파일로 되돌렸습니다. Claude 앱을 완전히 종료한 뒤 다시 켜세요." % bdir)
+    say("되돌림 — %s으로 되돌렸습니다. Claude 앱을 완전히 종료한 뒤 다시 켜세요.%s" % (target, more))
     return 0
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="C:\\krlaw 법령검색도구(law-axtax) 업그레이드")
-    ap.add_argument("--check", action="store_true", help="보기만(아무것도 안 바꿈)")
-    ap.add_argument("--rollback", action="store_true", help="마지막 백업의 파일로 되돌림")
+    ap.add_argument("--check", action="store_true", help="보기만(아무것도 안 바꿈) · --rollback 과 함께 쓰면 되돌릴 곳만 봄")
+    ap.add_argument("--rollback", action="store_true", help="마지막 업그레이드 전으로 한 단계 되돌림")
     a = ap.parse_args(argv)
     say("== 법령검색도구 업그레이드 — law-axtax v%s · 도구 %d개 ==" % (VERSION, TOOL_COUNT))
     try:
-        return rollback(ROOT) if a.rollback else upgrade(ROOT, a.check)
+        return rollback(ROOT, a.check) if a.rollback else upgrade(ROOT, a.check)
     except Stop as e:
         say("")
         say("중단 — %s" % e)
         return 1
+    except Exception as e:                # anything unforeseen: one plain line, not a traceback
+        say("")
+        say("중단 — 예상하지 못한 오류입니다(%s: %s). C:\\krlaw\\backup 에 백업이 있으면 --rollback 으로 "
+            "되돌릴 수 있습니다. 이 줄을 강사에게 알려 주세요." % (type(e).__name__, e))
+        return 2
 
 
 if __name__ == "__main__":
