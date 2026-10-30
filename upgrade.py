@@ -4,12 +4,13 @@
 # instructor's latest release.
 # AI 세무실무 강의 수강생 개인 실습용 — 재배포 금지
 #
-# It touches nothing unless C:\krlaw is the lecture folder: the folder
-# must exist, must not be empty, must hold the lecture code
-# (my_law_server.py serving "law-axtax", plus setup_key.py or
-# 07_register.py saved from the lecture repository), and must hold
-# nothing but lecture files. Missing, empty, someone else's code, or
-# other files mixed in: it stops with nothing changed.
+# It touches nothing unless C:\krlaw is built on the lecture code: the
+# folder must exist, must not be empty, and must hold my_law_server.py
+# grown from the lecture (named "law-axtax" or carrying the name stamp,
+# even if the student changed it since) plus setup_key.py or
+# 07_register.py saved from the lecture repository. Other files may sit
+# beside them and are left alone. Missing, empty, or no lecture code at
+# the base: it stops with nothing changed.
 #
 # When it does run:
 #   1) download law_mcp_server.py from this repository and check its
@@ -164,33 +165,9 @@ def file_sha(path):
 
 # ---- what C:\krlaw holds (read only) ---------------------------
 SYSTEM_FILES = ("desktop.ini", "thumbs.db", ".ds_store", "nul")   # the OS (and shell redirects) drop these
-# Everything a lecture folder may hold. Any other name means someone else's files: no upgrade.
-KNOWN_FILES = ("my_law_server.py", "setup_key.py", "07_register.py", "등록하기.bat", "claude.md",
-               "law_oc.txt", "owner.txt", CORE.lower(), NOTICE.lower())
-KNOWN_DIRS = (BACKUP, ".claude", "__pycache__")   # ours, Claude Code's project settings, Python's cache
-
-
-def strangers(root):
-    """Top-level names that are not lecture files. Empty files and the student's
-    own copies of my_law_server.py (my_law_server.py.bak and the like) are let through."""
-    out = []
-    for name in sorted(os.listdir(root)):
-        path, low = os.path.join(root, name), name.lower()
-        if os.path.isdir(path):
-            if low not in KNOWN_DIRS:
-                out.append(name + "\\")
-            continue
-        if low in KNOWN_FILES or low in SYSTEM_FILES or low.startswith("my_law_server"):
-            continue
-        if low.endswith(".new") and low[:-4] in KNOWN_FILES:     # left by an interrupted write
-            continue
-        try:
-            if os.path.getsize(path) == 0:
-                continue
-        except OSError:
-            pass
-        out.append(name)
-    return out
+# Signs that my_law_server.py grew from the lecture code, even after the student changed it:
+# the server name, or the name stamp setup_key.py writes.
+SERVER_SIGNS = ("law-axtax", "AI 세무실무 강의 실습")
 
 
 def has_content(root):
@@ -219,17 +196,12 @@ def inspect(root):
         return "empty", "%s 폴더가 비어 있습니다" % root
     if not has_content(root):
         return "empty", "%s 폴더가 비어 있습니다(빈 폴더 · 빈 파일뿐)" % root
-    other = strangers(root)
-    if other:
-        more = " 외 %d개" % (len(other) - 5) if len(other) > 5 else ""
-        return "foreign", "%s 에 강의 실습 파일이 아닌 다른 파일이 있습니다: %s%s" % (
-            root, " · ".join(other[:5]), more)
     entry = read_text(os.path.join(root, ENTRY))
     if not entry.strip():
         return "foreign", "%s 가 없거나 비어 있습니다 — 강의 실습 서버가 없는 폴더입니다" % ENTRY
     if TAG in entry:
         return "upgraded", "전에 업그레이드한 강의 실습 폴더입니다"
-    if "law-axtax" not in entry or "jsonrpc" not in entry:
+    if not any(sign in entry for sign in SERVER_SIGNS):
         return "foreign", "%s 가 강의 실습 서버(law-axtax)가 아닙니다 — 다른 코드입니다" % ENTRY
     matched = [fn for fn, pats in LECTURE_FILES.items()
                if all(re.search(p, read_text(os.path.join(root, fn))) for p in pats)]
@@ -353,7 +325,7 @@ def upgrade(root, check_only=False):
     say("  폴더      : %s" % why)
     if state not in ("lecture", "upgraded"):
         raise Stop("업그레이드하지 않았습니다. 이 업그레이드는 강의 실습을 마친 PC 의 C:\\krlaw 에서만 합니다"
-                   "(폴더가 없거나 · 비었거나 · 강의 실습 코드가 아니거나 · 다른 파일이 섞여 있으면 진행하지 않음). "
+                   "(폴더가 없거나 · 비었거나 · 강의 실습 코드가 바탕에 없으면 진행하지 않음). "
                    "아무것도 바꾸지 않았습니다.")
     key = has_key(root)
     say("  지금 서버 : %s" % server_version(root))
