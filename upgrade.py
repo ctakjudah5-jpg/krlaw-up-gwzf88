@@ -5,10 +5,11 @@
 # AI 세무실무 강의 수강생 개인 실습용 — 재배포 금지
 #
 # It touches nothing unless C:\krlaw is the lecture folder: the folder
-# must exist, must not be empty, and must hold the lecture code
+# must exist, must not be empty, must hold the lecture code
 # (my_law_server.py serving "law-axtax", plus setup_key.py or
-# 07_register.py saved from the lecture repository). Missing, empty,
-# or someone else's code: it stops with nothing changed.
+# 07_register.py saved from the lecture repository), and must hold
+# nothing but lecture files. Missing, empty, someone else's code, or
+# other files mixed in: it stops with nothing changed.
 #
 # When it does run:
 #   1) download law_mcp_server.py from this repository and check its
@@ -162,7 +163,34 @@ def file_sha(path):
 
 
 # ---- what C:\krlaw holds (read only) ---------------------------
-SYSTEM_FILES = ("desktop.ini", "thumbs.db", ".ds_store")    # the OS drops these into any folder
+SYSTEM_FILES = ("desktop.ini", "thumbs.db", ".ds_store", "nul")   # the OS (and shell redirects) drop these
+# Everything a lecture folder may hold. Any other name means someone else's files: no upgrade.
+KNOWN_FILES = ("my_law_server.py", "setup_key.py", "07_register.py", "등록하기.bat", "claude.md",
+               "law_oc.txt", "owner.txt", CORE.lower(), NOTICE.lower())
+KNOWN_DIRS = (BACKUP, ".claude", "__pycache__")   # ours, Claude Code's project settings, Python's cache
+
+
+def strangers(root):
+    """Top-level names that are not lecture files. Empty files and the student's
+    own copies of my_law_server.py (my_law_server.py.bak and the like) are let through."""
+    out = []
+    for name in sorted(os.listdir(root)):
+        path, low = os.path.join(root, name), name.lower()
+        if os.path.isdir(path):
+            if low not in KNOWN_DIRS:
+                out.append(name + "\\")
+            continue
+        if low in KNOWN_FILES or low in SYSTEM_FILES or low.startswith("my_law_server"):
+            continue
+        if low.endswith(".new") and low[:-4] in KNOWN_FILES:     # left by an interrupted write
+            continue
+        try:
+            if os.path.getsize(path) == 0:
+                continue
+        except OSError:
+            pass
+        out.append(name)
+    return out
 
 
 def has_content(root):
@@ -191,6 +219,11 @@ def inspect(root):
         return "empty", "%s 폴더가 비어 있습니다" % root
     if not has_content(root):
         return "empty", "%s 폴더가 비어 있습니다(빈 폴더 · 빈 파일뿐)" % root
+    other = strangers(root)
+    if other:
+        more = " 외 %d개" % (len(other) - 5) if len(other) > 5 else ""
+        return "foreign", "%s 에 강의 실습 파일이 아닌 다른 파일이 있습니다: %s%s" % (
+            root, " · ".join(other[:5]), more)
     entry = read_text(os.path.join(root, ENTRY))
     if not entry.strip():
         return "foreign", "%s 가 없거나 비어 있습니다 — 강의 실습 서버가 없는 폴더입니다" % ENTRY
@@ -320,7 +353,8 @@ def upgrade(root, check_only=False):
     say("  폴더      : %s" % why)
     if state not in ("lecture", "upgraded"):
         raise Stop("업그레이드하지 않았습니다. 이 업그레이드는 강의 실습을 마친 PC 의 C:\\krlaw 에서만 합니다"
-                   "(폴더가 없거나 · 비었거나 · 강의 실습 코드가 아니면 진행하지 않음). 아무것도 바꾸지 않았습니다.")
+                   "(폴더가 없거나 · 비었거나 · 강의 실습 코드가 아니거나 · 다른 파일이 섞여 있으면 진행하지 않음). "
+                   "아무것도 바꾸지 않았습니다.")
     key = has_key(root)
     say("  지금 서버 : %s" % server_version(root))
     say("  새 판     : law-axtax v%s · 도구 %d개" % (VERSION, TOOL_COUNT))
