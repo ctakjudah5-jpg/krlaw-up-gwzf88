@@ -162,6 +162,23 @@ def file_sha(path):
 
 
 # ---- what C:\krlaw holds (read only) ---------------------------
+SYSTEM_FILES = ("desktop.ini", "thumbs.db", ".ds_store")    # the OS drops these into any folder
+
+
+def has_content(root):
+    """True when the folder holds at least one non-empty file, OS files aside."""
+    for base, _dirs, files in os.walk(root):
+        for fn in files:
+            if fn.lower() in SYSTEM_FILES:
+                continue
+            try:
+                if os.path.getsize(os.path.join(base, fn)) > 0:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
 def inspect(root):
     """-> (state, why). state: missing | empty | foreign | lecture | upgraded."""
     if not os.path.isdir(root):
@@ -172,9 +189,11 @@ def inspect(root):
         return "missing", "%s 폴더를 읽지 못했습니다 (%s)" % (root, e)
     if not names:
         return "empty", "%s 폴더가 비어 있습니다" % root
+    if not has_content(root):
+        return "empty", "%s 폴더가 비어 있습니다(빈 폴더 · 빈 파일뿐)" % root
     entry = read_text(os.path.join(root, ENTRY))
     if not entry.strip():
-        return "foreign", "%s 가 없습니다 — 강의 실습 서버가 없는 폴더입니다" % ENTRY
+        return "foreign", "%s 가 없거나 비어 있습니다 — 강의 실습 서버가 없는 폴더입니다" % ENTRY
     if TAG in entry:
         return "upgraded", "전에 업그레이드한 강의 실습 폴더입니다"
     if "law-axtax" not in entry or "jsonrpc" not in entry:
